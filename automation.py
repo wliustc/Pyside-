@@ -4,6 +4,7 @@
 # @Author  : Nevermoreluo (nevermoreluo@gmail.com)
 import sys
 import string
+import time
 from PySide import QtGui
 from PySide import QtCore
 from config import *
@@ -106,26 +107,32 @@ class Automation(QtGui.QWidget):
             self.threadsList = []
             if uu:
                 for i, userInfo in enumerate(self.user_list):
-                    t = UuWorker(userInfo, i, uuUser, uuPasswd)
-                    t.dangDangXiaDan.c.sig.connect(self.showInfo)
-                    t.start()
-                    setattr(self, 'thread%s' % str(i + 1), t)
-                    self.threadsList.append(t)
+                    self.t = UuWorker(userInfo, i, uuUser, uuPasswd)
+                    self.t.dangDangXiaDan.c.sig.connect(self.showInfo)
+                    self.t.start()
+                    setattr(self, 'thread%s' % str(i + 1), self.t)
+                    self.threadsList.append(self.t)
             else:
                 for i, userInfo in enumerate(self.user_list):
-                    t = Worker(userInfo, i)
-                    self.setTableItem(t, i)
-                    t.dangDangXiaDan.c.sig.connect(self.showInfo)
-                    t.start()
-                    setattr(self, 'thread%s' % str(i + 1), t)
-                    self.threadsList.append(t)
+                    self.t = Worker(userInfo, i)
+                    self.setTableItem(self.t, i)
+                    self.t.dangDangXiaDan.c.sig.connect(self.showInfo)
+                    self.t.start()
+                    setattr(self, 'thread%s' % str(i + 1), self.t)
+                    self.threadsList.append(self.t)
         else:
             QtGui.QMessageBox.question(self, 'Message',
                                        u"请确认已导入订单信息!",
                                        QtGui.QMessageBox.Yes)
 
     def stop_event(self):
-        event.clear()
+        if hasattr(self, 'threadsList'):
+            [t.dangDangXiaDan.browser.close()
+             for t in self.threadsList
+                if t.isRunning()]
+            for i, userInfo in enumerate(self.user_list):
+                exec('self.tableWidget.item%s2.setText(self.tr(%s))'
+                     % (i, '任务已被用户终止...'))
 
 
 class MainTable(QtGui.QTableWidget):
@@ -161,6 +168,7 @@ class MainTable(QtGui.QTableWidget):
 
 
 class PicLabel(QtGui.QLabel):
+
     '''
     验证码控件，
     点击事件将触发信号，发送信号给主tab界面(Automation)
@@ -168,6 +176,7 @@ class PicLabel(QtGui.QLabel):
     待优化事件
     dangDangWoreker,为了建立图片触发事件之间的关联
     '''
+
     def __init__(self, dangDangWorker, parent=None):
         super(PicLabel, self).__init__(parent)
         self.dangDangWorker = dangDangWorker
@@ -189,6 +198,7 @@ class PicLabel(QtGui.QLabel):
 
 
 class EnterLineEdit(QtGui.QLineEdit):
+
     '''
     验证码输入框控件
 
@@ -196,6 +206,7 @@ class EnterLineEdit(QtGui.QLineEdit):
     验证完成时，tab跳转至下一个输入框
     piclabel，建立触发事件关联
     '''
+
     def __init__(self, piclabel, parent=None):
         super(EnterLineEdit, self).__init__(parent)
         # self.setFixedSize(100, 40)
