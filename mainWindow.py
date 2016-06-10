@@ -14,8 +14,8 @@ class MainDialog(QtGui.QDialog):
         super(MainDialog, self).__init__(parent)
         tabWidget = QtGui.QTabWidget(self)
         system_tab = SysOption()
-        automation_tab = Automation()
-        tabWidget.addTab(automation_tab, self.tr("自动化下单"))
+        self.automation_tab = Automation()
+        tabWidget.addTab(self.automation_tab, self.tr("自动化下单"))
         tabWidget.addTab(system_tab, self.tr('系统设置'))
         self.mainLayout = QtGui.QGridLayout(self)
         self.mainLayout.addWidget(tabWidget)
@@ -41,6 +41,10 @@ class MainDialog(QtGui.QDialog):
                                            QtGui.QMessageBox.No)
         # 检验用户返回，并返回对应的结果
         if reply == QtGui.QMessageBox.Yes:
+            if hasattr(self.automation_tab, 'threadsList'):
+                [t.dangDangXiaDan.browser.close()
+                 for t in self.automation_tab.threadsList
+                    if t.isRunning()]
             event.accept()
         else:
             event.ignore()
