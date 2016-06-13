@@ -30,7 +30,7 @@ class FSig(QtCore.QObject):
 
 class DangDangXiaDan(object):
 
-    def __init__(self, userInfo, threadNum):
+    def __init__(self, userInfo, threadNum, **options):
         self.loginUrl = 'https://login.dangdang.com/signin.php'
         self.addressUrl = 'http://customer.dangdang.com/myaddress/myaddress.php'
         profile = FirefoxBinary('/home/never/下载/firefox/firefox')
@@ -39,6 +39,7 @@ class DangDangXiaDan(object):
         #                                    desired_capabilities=dcap)
         self.browser.get(self.loginUrl)
         self.browser.maximize_window()
+        self.options = options
         self.username = userInfo[0]
         self.password = userInfo[5]
         self.booklist = zip(userInfo[7], userInfo[8])
@@ -87,7 +88,7 @@ class DangDangXiaDan(object):
         im = im.crop((left, top, right, bottom))  # 870, 328, 956, 366
         im.save(self.imgfile)  # saves new cropped image
 
-    def login(self, uuuser, uupwd):
+    def login(self):
         # self.browser.get(self.loginUrl)
         try:
             self.browser.find_element_by_id("J_loginMaskClose").click()
@@ -100,7 +101,7 @@ class DangDangXiaDan(object):
         password_input = self.browser.find_element_by_id("txtPassword")
         password_input.clear()
         password_input.send_keys(self.password)
-        ucode = Ucode(uuuser, uupwd)
+        ucode = Ucode(self.options['uuUser'], self.options['uuPasswd'])
         captcha = ucode.uu_captcha(self.imgfile)
         if captcha:
             print 'captcha:', captcha
@@ -231,14 +232,14 @@ class DangDangXiaDan(object):
             pass
         try:
             Select(self.browser.find_element_by_id('sel_ship_time_1_0_0')
-                   ).select_by_visible_text(self.delivery_time)
+                   ).select_by_visible_text(self.options['deliveryMthods'])
             self.browser.find_element_by_id('btn_shipment_save_0_0').click()
             self.browser.find_element_by_id(
-                'rd_pay_id_0_0').find_element_by_id('54').click()
+                'rd_pay_id_0_0').find_element_by_id(paydict[self.options['payMethods']]).click()
             self.browser.find_element_by_id('btn_payment_save_0_0').click()
-            self.browser.find_element_by_id('invoice_title_person_0_0').click()
+            self.browser.find_element_by_id(invoicedict[self.options['invoiceTitle']]).click()
             Select(self.browser.find_element_by_id('invoice_content_0_0')
-                   ).select_by_visible_text(u'图书')
+                   ).select_by_visible_text(self.options['invoice'])
             self.browser.find_element_by_id('invoice_submit_0_0')
         except:
             pass
@@ -247,7 +248,7 @@ class DangDangXiaDan(object):
         self.browser.close()
         self.myprint(u'帐号:%s, 完成订单' % self.name)
 
-    def shopping(self):
+    def shopping(self, c):
         self.add_address()
         self.empty_shopping_list()
         for i in self.booklist:
@@ -255,9 +256,10 @@ class DangDangXiaDan(object):
         self.empty_shopping_list()
         # self.pay()
         self.browser.close()
+        c.sig.emit()
 
-    def automationShopping(self, uuuser, uupwd, c):
-        if self.login(uuuser, uupwd):
+    def automationShopping(self, c):
+        if self.login():
             self.add_address()
             self.empty_shopping_list()
             for i in self.booklist:
