@@ -20,7 +20,7 @@ class MainDialog(QtGui.QDialog):
         self.mainLayout = QtGui.QGridLayout(self)
         self.mainLayout.addWidget(tabWidget)
         self.setWindowTitle(u'吾宁当当自动下单')
-        self.resize(800, 800)
+        self.resize(800, 500)
 
     def center(self):
         # 获得窗口的数据,PySide.QtCore.QRect
@@ -35,7 +35,7 @@ class MainDialog(QtGui.QDialog):
     def closeEvent(self, event):
         # 将弹出窗口的结果赋值给reply
         reply = QtGui.QMessageBox.question(self, 'Message',
-                                           "Are you sure to quit?",
+                                           u"确定要关闭当前窗口吗?",
                                            QtGui.QMessageBox.Yes |
                                            QtGui.QMessageBox.No,
                                            QtGui.QMessageBox.No)
@@ -44,7 +44,7 @@ class MainDialog(QtGui.QDialog):
             if hasattr(self.automation_tab, 'threadsList'):
                 [t.dangDangXiaDan.browser.close()
                  for t in self.automation_tab.threadsList
-                    if t.isRunning()]
+                    if t.isAlive()]
             event.accept()
         else:
             event.ignore()
