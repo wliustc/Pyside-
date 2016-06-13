@@ -6,6 +6,7 @@ import time
 from PySide import QtCore
 from PIL import Image
 from selenium import webdriver
+from selenium.webdriver.firefox.firefox_binary import FirefoxBinary
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
@@ -32,9 +33,10 @@ class DangDangXiaDan(object):
     def __init__(self, userInfo, threadNum):
         self.loginUrl = 'https://login.dangdang.com/signin.php'
         self.addressUrl = 'http://customer.dangdang.com/myaddress/myaddress.php'
-        # self.browser = webdriver.Firefox()
-        self.browser = webdriver.PhantomJS(executable_path=phantomjs_path,
-                                           desired_capabilities=dcap)
+        profile = FirefoxBinary('/home/never/下载/firefox/firefox')
+        self.browser = webdriver.Firefox(firefox_binary=profile)
+        # self.browser = webdriver.PhantomJS(executable_path=phantomjs_path,
+        #                                    desired_capabilities=dcap)
         self.browser.get(self.loginUrl)
         self.browser.maximize_window()
         self.username = userInfo[0]
@@ -54,6 +56,7 @@ class DangDangXiaDan(object):
 
     def myprint(self, info):
         print info
+        # exec('self.tableWidget.item%s2.setText(info)' % self.threadNum)
         self.c.sig.emit([info.encode('utf8'), self.threadNum])
 
     def _switch_new_window(self):
@@ -84,36 +87,36 @@ class DangDangXiaDan(object):
         im = im.crop((left, top, right, bottom))  # 870, 328, 956, 366
         im.save(self.imgfile)  # saves new cropped image
 
-    def login(self, uuuser, uupwd, repeat_time=2):
-        for i in range(repeat_time):
-            # self.browser.get(self.loginUrl)
-            try:
-                self.browser.find_element_by_id("J_loginMaskClose").click()
-            except:
-                pass
-            if self.browser.current_url == self.loginUrl:
-                self.download_captcha()
-                username_input = self.browser.find_element_by_id("txtUsername")
-                username_input.clear()
-                username_input.send_keys(self.username)
-                password_input = self.browser.find_element_by_id("txtPassword")
-                password_input.clear()
-                password_input.send_keys(self.password)
-                ucode = Ucode(uuuser, uupwd)
-                captcha = ucode.uu_captcha(self.imgfile)
-                if captcha:
-                    print 'captcha:', captcha
-                    self.browser.find_element_by_id(
-                        'codeReplacer').send_keys(captcha)
-                    self.browser.find_element_by_id("submitLoginBtn").click()
-            try:
-                self.browser.find_element_by_id("txtUsername")
-                self.myprint(u'login successfully')
-                time.sleep(1)
-                return
-            except:
-                print '返回失败验证码 %s' % ucode.fail_requests()
-                time.sleep(1)
+    def login(self, uuuser, uupwd):
+        # self.browser.get(self.loginUrl)
+        try:
+            self.browser.find_element_by_id("J_loginMaskClose").click()
+        except:
+            pass
+        self.download_captcha()
+        username_input = self.browser.find_element_by_id("txtUsername")
+        username_input.clear()
+        username_input.send_keys(self.username)
+        password_input = self.browser.find_element_by_id("txtPassword")
+        password_input.clear()
+        password_input.send_keys(self.password)
+        ucode = Ucode(uuuser, uupwd)
+        captcha = ucode.uu_captcha(self.imgfile)
+        if captcha:
+            print 'captcha:', captcha
+            self.browser.find_element_by_id(
+                'codeReplacer').send_keys(captcha)
+            self.browser.find_element_by_id("submitLoginBtn").click()
+        time.sleep(1)
+        try:
+            self.browser.find_element_by_id("txtUsername")
+            self.myprint(u'登陆失败,正在返回失败验证码...失败原因 %s' % ucode.fail_requests())
+            return False
+        except:
+            self.myprint(u'login successfully')
+            time.sleep(2)
+            return True
+
         self.myprint(u'帐号:%s, login fail...' % self.username)
 
     def checkCaptcha(self, captcha):
@@ -126,16 +129,17 @@ class DangDangXiaDan(object):
         self.browser.find_element_by_id(
             'codeReplacer').send_keys(captcha)
         self.browser.find_element_by_id("submitLoginBtn").click()
-        time.sleep(1)
-        try:
-            self.browser.find_element_by_id("txtUsername")
+        time.sleep(2)
+        if self.browser.current_url == self.loginUrl:
+            self.myprint(u'login failed...')
             return False
-        except:
+        else:
             self.myprint(u'login successfully')
             return True
 
     def add_address(self):
         self.browser.get(self.addressUrl)
+        time.sleep(1)
         try:
             old_address_txt = self.browser.find_element_by_class_name(
                 'address_text').text
@@ -144,7 +148,8 @@ class DangDangXiaDan(object):
                                 ' ' + self.address['pro'],
                                 ' ' + self.address['city'],
                                 ' ' + self.address['town'],
-                                ' ' + '*' * 4 + self.address['addr_detail'][4:],
+                                ' ' + '*' * 4 +
+                                self.address['addr_detail'][4:],
                                 ' ' + self.address['postcode'],
                                 ' ' + self.address['phone'][:3] + '*' * 4 + self.address['phone'][7:]]
         except:
@@ -157,8 +162,8 @@ class DangDangXiaDan(object):
             except:
                 self.myprint(u'没有要删除的多余地址')
             self.myprint(u'正在填写收件人信息...')
-            self.browser.find_element_by_id('ship_man').send_keys(
-                self.address['name'])
+            self.browser.find_element_by_id(
+                'ship_man').send_keys(self.address['name'])
             self.myprint(u'正在填写收件人地址...')
             Select(self.browser.find_element_by_id('province_id')
                    ).select_by_visible_text(self.address['pro'])
@@ -187,7 +192,11 @@ class DangDangXiaDan(object):
         self.browser.find_element_by_name(u'购物车').click()
         self._switch_new_window()
         try:
-            self.browser.find_element_by_id('j_selectall2').click()
+            self.browser.find_element_by_class_name(
+                'checknow fn-checkall').click()
+        except:
+            pass
+        try:
             self.browser.find_element_by_css_selector(
                 'a#j_removeproducts.fn-batch-remove').click()
             self.browser.find_element_by_css_selector(
@@ -234,23 +243,25 @@ class DangDangXiaDan(object):
         except:
             pass
         self.browser.find_element_by_id('submit').click()
-        time.sleep(5)
+        time.sleep(2)
         self.browser.close()
         self.myprint(u'帐号:%s, 完成订单' % self.name)
 
     def shopping(self):
-        # self.add_address()
-        # self.empty_shopping_list()
-        # for i in self.booklist:
-        #     self.search_books(*i)
-        # self.empty_shopping_list()
-        # self.pay()
-        self.browser.close()
-
-    def automationShopping(self, uuuser, uupwd):
-        self.login(uuuser, uupwd)
         self.add_address()
         self.empty_shopping_list()
         for i in self.booklist:
             self.search_books(*i)
         self.empty_shopping_list()
+        # self.pay()
+        self.browser.close()
+
+    def automationShopping(self, uuuser, uupwd, c):
+        if self.login(uuuser, uupwd):
+            self.add_address()
+            self.empty_shopping_list()
+            for i in self.booklist:
+                self.search_books(*i)
+            self.empty_shopping_list()
+        self.browser.close()
+        c.sig.emit()
