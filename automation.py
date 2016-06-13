@@ -8,6 +8,7 @@ import time
 from PySide import QtGui
 from PySide import QtCore
 from config import *
+import threading
 from dangdang_pyside import DangDangXiaDan
 from sysOption import showOption
 # 重载sys时,偶尔会丢失标准输出，标准输入等，所以最好提前赋值
@@ -19,6 +20,8 @@ sys.setdefaultencoding('utf8')
 
 # 设置全局的slef.tr的字符串编码为utf8
 QtCore.QTextCodec.setCodecForTr(QtCore.QTextCodec.codecForName("utf8"))
+
+abort = False
 
 
 class Communicate(QtCore.QObject):
@@ -51,6 +54,7 @@ class Automation(QtGui.QWidget):
 
     def __init__(self, parent=None):
         super(Automation, self).__init__(parent)
+
         self.mainLayout = QtGui.QGridLayout(self)
         self.bottomLayout = QtGui.QHBoxLayout()
         self.text = QtGui.QTextBrowser()
@@ -73,6 +77,8 @@ class Automation(QtGui.QWidget):
         self.loadButton.clicked.connect(self.load_file)
         stopButton.clicked.connect(self.stop_event)
         beginButton.clicked.connect(self.begin_event)
+
+        self.c = Communicate()
 
     def load_file(self):
         filename, _ = QtGui.QFileDialog.getOpenFileName(self, 'Open file', '')
@@ -98,20 +104,35 @@ class Automation(QtGui.QWidget):
         info, threadNum = s
         exec('self.tableWidget.item%s2.setText(self.tr(info))' % threadNum)
 
+    def getNewThread(self):
+        self.count += 1
+        if self.count <= len(self.user_list):
+            userInfo = self.user_list[self.count]
+            t = UuWorker(userInfo, self.count, self.uuUser, self.uuPasswd, self.c)
+            t.dangDangXiaDan.c.sig.connect(self.showInfo)
+            t.start()
+            setattr(self, 'thread%s' % str(self.count + 1), t)
+            self.threadsList.append(t)
+
     def begin_event(self):
         options = showOption()
         uu = options.get('uuPlatform', None)
-        uuUser = options.get('uuUser', None)
-        uuPasswd = options.get('uuPasswd', None)
+        self.uuUser = options.get('uuUser', None)
+        self.uuPasswd = options.get('uuPasswd', None)
+        maxThread = int(options.get('maxThreadCount', 1))
+
         if hasattr(self, 'user_list'):
             self.threadsList = []
             if uu:
-                for i, userInfo in enumerate(self.user_list):
-                    self.t = UuWorker(userInfo, i, uuUser, uuPasswd)
+                self.c.sig.connect(self.getNewThread)
+                for i, userInfo in enumerate(self.user_list[:maxThread]):
+                    self.t = UuWorker(userInfo, i, self.uuUser, self.uuPasswd, self.c)
                     self.t.dangDangXiaDan.c.sig.connect(self.showInfo)
-                    self.t.start()
                     setattr(self, 'thread%s' % str(i + 1), self.t)
                     self.threadsList.append(self.t)
+                    self.t.start()
+                    self.count = i
+
             else:
                 for i, userInfo in enumerate(self.user_list):
                     self.t = Worker(userInfo, i)
@@ -120,6 +141,7 @@ class Automation(QtGui.QWidget):
                     self.t.start()
                     setattr(self, 'thread%s' % str(i + 1), self.t)
                     self.threadsList.append(self.t)
+                # self.pool.waitForDone()
         else:
             QtGui.QMessageBox.question(self, 'Message',
                                        u"请确认已导入订单信息!",
@@ -129,10 +151,10 @@ class Automation(QtGui.QWidget):
         if hasattr(self, 'threadsList'):
             [t.dangDangXiaDan.browser.close()
              for t in self.threadsList
-                if t.isRunning()]
+                if t.isAlive()]
             for i, userInfo in enumerate(self.user_list):
                 exec('self.tableWidget.item%s2.setText(self.tr(%s))'
-                     % (i, '任务已被用户终止...'))
+                     % (i, "'任务已被用户终止...'"))
 
 
 class MainTable(QtGui.QTableWidget):
@@ -189,7 +211,6 @@ class PicLabel(QtGui.QLabel):
         self.dangDangThread.download_captcha()
         pix = QtGui.QPixmap(self.dangDangThread.imgfile)
         self.setPixmap(pix)
-        self.dangDangThread.browser.save_screenshot('jj.jpg')
         print self.dangDangThread.imgfile
         # self.resize(90, 50)
 
@@ -256,7 +277,7 @@ class EnterLineEdit(QtGui.QLineEdit):
         return False
 
 
-class Worker(QtCore.QThread):
+class Worker(threading.Thread):
 
     def __init__(self, userInfo, threadNum):
         super(Worker, self).__init__()
@@ -274,13 +295,17 @@ class Worker(QtCore.QThread):
         self.dangDangXiaDan.shopping()
 
 
-class UuWorker(QtCore.QThread):
+class UuWorker(threading.Thread):
 
-    def __init__(self, userInfo, threadNum, uuUser, uuPasswd):
+    def __init__(self, userInfo, threadNum, uuUser, uuPasswd, c):
         super(UuWorker, self).__init__()
+        self.c = c
         self.uuUser = uuUser
         self.uuPasswd = uuPasswd
+        self.isFinished = False
         self.dangDangXiaDan = DangDangXiaDan(userInfo, threadNum)
 
     def run(self):
-        self.dangDangXiaDan.automationShopping(self.uuUser, self.uuPasswd)
+        self.dangDangXiaDan.automationShopping(self.uuUser, self.uuPasswd, self.c)
+        self.isFinished = True
+
