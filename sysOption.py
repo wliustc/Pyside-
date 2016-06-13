@@ -10,17 +10,16 @@ from PySide import QtCore
 from config import *
 
 if not os.path.exists(userSettingDate):
-    with open(userSettingDate, 'w'):
-        pass
+    with open(userSettingDate, 'w') as f:
+        json.dump({'uuPlatform': False,
+                   'uuUser': '',
+                   'uuPasswd': '',
+                   'maxThreadCount': '1'}, f)
 
 
 def setUpDate(newOption):
     with open(userSettingDate, 'rb') as rf:
-        if rf.read():
-            rf.seek(0)
-            oldDate = json.load(rf)
-        else:
-            oldDate = {}
+        oldDate = json.load(rf)
     with open(userSettingDate, 'wb') as f:
         oldDate.update(newOption)
         json.dump(oldDate, f)
@@ -30,6 +29,20 @@ def showOption():
     with open(userSettingDate) as f:
         date = json.load(f)
         return date
+
+
+class ThreadOption(QtGui.QWidget):
+
+    def __init__(self, parent=None):
+        super(ThreadOption, self).__init__(parent)
+        threadLayout = QtGui.QGridLayout(self)
+        self.maxThreadLabel = QtGui.QLabel(u'线程数量:')
+        self.maxThreadEdit = QtGui.QLineEdit()
+        self.tipsThreadLabel = QtGui.QLabel(u'(默认为1)')
+
+        threadLayout.addWidget(self.maxThreadLabel, 0, 0)
+        threadLayout.addWidget(self.maxThreadEdit, 0, 1)
+        threadLayout.addWidget(self.tipsThreadLabel, 0, 2)
 
 
 class CaptchaOption(QtGui.QWidget):
@@ -68,28 +81,35 @@ class SysOption(QtGui.QWidget):
         self.captcha = CaptchaOption(capInfo)
         capInfo.setFrameStyle(QtGui.QFrame.StyledPanel | QtGui.QFrame.Raised)
 
+        threadInfo = QtGui.QSplitter()
+        self.threadOpt = ThreadOption(threadInfo)
+        threadInfo.setFrameStyle(QtGui.QFrame.StyledPanel | QtGui.QFrame.Raised)
+
         buttonLayout = QtGui.QHBoxLayout()
         changeButton = QtGui.QPushButton(u"修改")
         saveButton = QtGui.QPushButton(u'保存设置')
+
         buttonLayout.addStretch(1)
         buttonLayout.addWidget(changeButton)
         buttonLayout.addWidget(saveButton)
 
-        mainLayout.addWidget(capInfo, 0, 1)
-        mainLayout.addLayout(buttonLayout, 1, 1)
+        mainLayout.addWidget(threadInfo, 0, 1)
+        mainLayout.addWidget(capInfo, 1, 1)
+        mainLayout.addLayout(buttonLayout, 2, 1)
 
         saveButton.clicked.connect(self.saveOption)
         changeButton.clicked.connect(self.setEditorsEnable)
 
         self.checkBoxList = [('uuPlatform', self.captcha.checkBox)]
         self.editList = [('uuUser', self.captcha.userLineEdit),
-                         ('uuPasswd', self.captcha.passwdLineEdit)]
+                         ('uuPasswd', self.captcha.passwdLineEdit),
+                         ('maxThreadCount', self.threadOpt.maxThreadEdit)]
         self.initializtion()
 
     def initializtion(self):
         self.setEditorsEnable(False)
         oldOption = showOption()
-        [edit.setText(oldOption[kw]) for kw, edit in self.editList]
+        [edit.setText(unicode(oldOption[kw])) for kw, edit in self.editList]
         [chcekBox.setCheckState(QtCore.Qt.Checked)
             for kw, chcekBox in self.checkBoxList if oldOption[kw]]
 
