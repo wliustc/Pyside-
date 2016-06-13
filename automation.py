@@ -21,7 +21,8 @@ sys.setdefaultencoding('utf8')
 # 设置全局的slef.tr的字符串编码为utf8
 QtCore.QTextCodec.setCodecForTr(QtCore.QTextCodec.codecForName("utf8"))
 
-abort = False
+options = {}
+flags = True
 
 
 class Communicate(QtCore.QObject):
@@ -108,40 +109,44 @@ class Automation(QtGui.QWidget):
         self.count += 1
         if self.count <= len(self.user_list):
             userInfo = self.user_list[self.count]
-            t = UuWorker(userInfo, self.count, self.uuUser, self.uuPasswd, self.c)
+            t = UuWorker(userInfo, self.count, self.c, **options)
             t.dangDangXiaDan.c.sig.connect(self.showInfo)
             t.start()
             setattr(self, 'thread%s' % str(self.count + 1), t)
             self.threadsList.append(t)
 
     def begin_event(self):
+        global options
         options = showOption()
         uu = options.get('uuPlatform', None)
-        self.uuUser = options.get('uuUser', None)
-        self.uuPasswd = options.get('uuPasswd', None)
         maxThread = int(options.get('maxThreadCount', 1))
 
         if hasattr(self, 'user_list'):
-            self.threadsList = []
-            if uu:
+            if u'请选择' not in options.values():
+                self.threadsList = []
                 self.c.sig.connect(self.getNewThread)
-                for i, userInfo in enumerate(self.user_list[:maxThread]):
-                    self.t = UuWorker(userInfo, i, self.uuUser, self.uuPasswd, self.c)
-                    self.t.dangDangXiaDan.c.sig.connect(self.showInfo)
-                    setattr(self, 'thread%s' % str(i + 1), self.t)
-                    self.threadsList.append(self.t)
-                    self.t.start()
-                    self.count = i
+                if uu:
+                    for i, userInfo in enumerate(self.user_list[:maxThread]):
+                        self.t = UuWorker(userInfo, i, self.c, **options)
+                        self.t.dangDangXiaDan.c.sig.connect(self.showInfo)
+                        self.t.start()
+                        setattr(self, 'thread%s' % str(i + 1), self.t)
+                        self.threadsList.append(self.t)
+                        self.count = i
 
+                else:
+                    for i, userInfo in enumerate(self.user_list[:maxThread]):
+                        self.t = Worker(userInfo, i, self.c, **options)
+                        self.setTableItem(self.t, i)
+                        self.t.dangDangXiaDan.c.sig.connect(self.showInfo)
+                        self.t.start()
+                        setattr(self, 'thread%s' % str(i + 1), self.t)
+                        self.threadsList.append(self.t)
+                        self.count = i
             else:
-                for i, userInfo in enumerate(self.user_list):
-                    self.t = Worker(userInfo, i)
-                    self.setTableItem(self.t, i)
-                    self.t.dangDangXiaDan.c.sig.connect(self.showInfo)
-                    self.t.start()
-                    setattr(self, 'thread%s' % str(i + 1), self.t)
-                    self.threadsList.append(self.t)
-                # self.pool.waitForDone()
+                QtGui.QMessageBox.question(self, 'Message',
+                                           u"请确认系统设置是否配置完全!",
+                                           QtGui.QMessageBox.Yes)
         else:
             QtGui.QMessageBox.question(self, 'Message',
                                        u"请确认已导入订单信息!",
@@ -253,7 +258,8 @@ class EnterLineEdit(QtGui.QLineEdit):
                                                 QtGui.QFrame.Sunken)
                     self.piclabel.setText(u'Done!')
                     self.setText(u'完成！')
-                    self.piclabel.dangDangWorker.s.sig.emit()
+                    global flags
+                    flags = False
                 else:
                     self.piclabel.setEnabled(True)
                     self.piclabel.showPic()
@@ -279,33 +285,27 @@ class EnterLineEdit(QtGui.QLineEdit):
 
 class Worker(threading.Thread):
 
-    def __init__(self, userInfo, threadNum):
+    def __init__(self, userInfo, threadNum, c, **kw):
         super(Worker, self).__init__()
-        self.flags = True
-        self.dangDangXiaDan = DangDangXiaDan(userInfo, threadNum)
-        self.s = Communicate()
-
-    def setFlags(self):
-        self.flags = False
+        self.c = c
+        self.isFinished = False
+        self.dangDangXiaDan = DangDangXiaDan(userInfo, threadNum, **kw)
 
     def run(self):
-        self.s.sig.connect(self.setFlags)
-        while self.flags:
+        while flags:
             time.sleep(1)
-        self.dangDangXiaDan.shopping()
+        self.dangDangXiaDan.shopping(self.c)
+        self.isFinished = True
 
 
 class UuWorker(threading.Thread):
 
-    def __init__(self, userInfo, threadNum, uuUser, uuPasswd, c):
+    def __init__(self, userInfo, threadNum, c, **kw):
         super(UuWorker, self).__init__()
         self.c = c
-        self.uuUser = uuUser
-        self.uuPasswd = uuPasswd
         self.isFinished = False
-        self.dangDangXiaDan = DangDangXiaDan(userInfo, threadNum)
+        self.dangDangXiaDan = DangDangXiaDan(userInfo, threadNum, **kw)
 
     def run(self):
-        self.dangDangXiaDan.automationShopping(self.uuUser, self.uuPasswd, self.c)
+        self.dangDangXiaDan.automationShopping(self.c)
         self.isFinished = True
-
