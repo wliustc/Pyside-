@@ -8,4 +8,4 @@ imgfile = 'screenshot%s.jpg'
 
 # 设置phantomjs路径
 phantomjs_path = ''
-userSettingDate = '.userSetting'
+userSettingDate = 'userSetting'
