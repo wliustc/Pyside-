@@ -2,9 +2,12 @@
 # -*- coding: utf-8 -*-
 # @Date    : 2016-06-08 11:23:36
 # @Author  : Nevermoreluo (nevermoreluo@gmail.com)
+import re
 import time
-from PySide import QtCore
+import requests
+from bs4 import BeautifulSoup
 from PIL import Image
+from PySide import QtCore
 from selenium import webdriver
 from selenium.webdriver.firefox.firefox_binary import FirefoxBinary
 from selenium.webdriver.common.keys import Keys
@@ -18,6 +21,20 @@ dcap["phantomjs.page.settings.userAgent"] = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/53 "
     "(KHTML, like Gecko) firefox/15.0.87"
 )
+
+
+def inventory(id):
+
+    pre_id = '1468491271'
+    url = '''http://shopping.dangdang.com/shoppingcart/cart_append_new?product_ids=%7B%22product%22%3A%5B%7B%22productId%22%3A%221468491271%22%2C%22productCount%22%3A%221000000%22%2C%22promotion%22%3A%5B%5D%7D%5D%2C%22referer%22%3A%22http%3A//product.dangdang.com/1468491271.html%22%2C%22prev_referer%22%3A%22http%3A//shopping.dangdang.com/shoppingcart/shopping_cart.aspx%3Fproduct_ids%3D0%26referer%3Dhttp%3A//shopping.dangdang.com/shoppingcart/cart_append_new%3Fproduct_ids%3D%257B%2522product%2522%253A%255B%257B%2522productId%2522%253A%25221468491271%2522%252C%2522productCount%2522%253A%25229999%2522%252C%2522promotion%2522%253A%255B%255D%257D%255D%252C%2522referer%2522%253A%2522http%253A//product.dangdang.com/1468491271.html%2522%252C%2522prev_referer%2522%253A%2522http%253A//book.dangdang.com/%2522%257D%22%7D#http://product.dangdang.com/product.aspx?product_id=1468491271'''
+
+    url = url.replace(pre_id, str(id))
+    html = requests.get(url).content
+    soup = BeautifulSoup(html, 'lxml')
+    l = soup.find('span', {'class': 'gift_lack_detail'})
+    quantity = re.findall('\d+', l.text)[0]
+    title = soup.find('span', {'class': 'gift_lack_name'}).text.strip('\n')
+    return title, int(quantity)
 
 
 class FSig(QtCore.QObject):
@@ -57,7 +74,6 @@ class DangDangXiaDan(object):
 
     def myprint(self, info):
         print info
-        # exec('self.tableWidget.item%s2.setText(info)' % self.threadNum)
         self.c.sig.emit([info.encode('utf8'), self.threadNum])
 
     def _switch_new_window(self):
@@ -212,15 +228,16 @@ class DangDangXiaDan(object):
         book_url = 'http://product.dangdang.com/%s.html' % book_id
         self.myprint(u'正在检索书目%s...' % book_id)
         self.browser.get(book_url)
-        temp = self.browser.find_element_by_class_name('name_info')
-        kw = temp.find_element_by_tag_name('h1').get_attribute('title')
+        # temp = self.browser.find_element_by_class_name('name_info')
+        # kw = temp.find_element_by_tag_name('h1').get_attribute('title')
         self.myprint(u'正在修改购买数量...')
         num = self.browser.find_element_by_id('buy_num')
         num.clear()
         num.send_keys(number)
         num.send_keys(Keys.ENTER)
         self.browser.find_element_by_id('part_buy_button').click()
-        self.myprint(u'帐号:%s, 已检索到%s, 加入购物车 %s 本' % (self.username, kw, number))
+        # self.myprint(u'帐号:%s, 已检索到%s, 加入购物车 %s 本' % (self.username, kw, number))
+        self.myprint(u'帐号:%s, 已检索到%s, 加入购物车 %s 本' % (self.username, book_id, number))
 
     def pay(self):
         self.myprint(u'开始支付...')
@@ -256,7 +273,7 @@ class DangDangXiaDan(object):
         self.empty_shopping_list()
         # self.pay()
         self.browser.close()
-        c.sig.emit()
+        c.sig.emit(str(self.threadNum))
 
     def automationShopping(self, c):
         if self.login():
@@ -266,4 +283,4 @@ class DangDangXiaDan(object):
                 self.search_books(*i)
             self.empty_shopping_list()
         self.browser.close()
-        c.sig.emit()
+        c.sig.emit(str(self.threadNum))
