@@ -8,7 +8,7 @@ from automation import Automation
 from sysOption import SysOption
 
 
-class MainDialog(QtGui.QDialog):
+class MainDialog(QtGui.QWidget):
 
     def __init__(self, parent=None):
         super(MainDialog, self).__init__(parent)
@@ -20,7 +20,7 @@ class MainDialog(QtGui.QDialog):
         self.mainLayout = QtGui.QGridLayout(self)
         self.mainLayout.addWidget(tabWidget)
         self.setWindowTitle(u'吾宁当当自动下单')
-        self.resize(800, 500)
+        self.resize(1000, 500)
 
     def center(self):
         # 获得窗口的数据,PySide.QtCore.QRect
@@ -54,4 +54,4 @@ if __name__ == '__main__':
     app = QtGui.QApplication(sys.argv)
     k = MainDialog()
     k.show()
-    app.exec_()
+    sys.exit(app.exec_())
