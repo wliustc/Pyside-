@@ -9,7 +9,7 @@ from PySide import QtGui
 from PySide import QtCore
 from config import *
 import threading
-from dangdang_pyside import DangDangXiaDan
+from dangdang_pyside import DangDangXiaDan, inventory
 from sysOption import showOption
 # 重载sys时,偶尔会丢失标准输出，标准输入等，所以最好提前赋值
 stdi, stdo, stde = sys.stdin, sys.stdout, sys.stderr
@@ -22,12 +22,11 @@ sys.setdefaultencoding('utf8')
 QtCore.QTextCodec.setCodecForTr(QtCore.QTextCodec.codecForName("utf8"))
 
 options = {}
-flags = True
 
 
 class Communicate(QtCore.QObject):
     # 收发无参数信号
-    sig = QtCore.Signal()
+    sig = QtCore.Signal(str)
 
 
 def csv_processing(filename):
@@ -85,8 +84,8 @@ class Automation(QtGui.QWidget):
         filename, _ = QtGui.QFileDialog.getOpenFileName(self, 'Open file', '')
         if sum(filename.endswith(i) for i in ['.csv']):  # , '.xls', '.xlsx']):
             self.fileLabel.setText(filename)
-            self.user_list = csv_processing(filename)
-            self.tableWidget = MainTable(self.user_list)
+            self.input_list = csv_processing(filename)
+            self.tableWidget = MainTable(self.input_list)
             self.mainLayout.addWidget(self.tableWidget, 2, 0)
             # self.loadButton.setEnabled(False)
 
@@ -103,31 +102,86 @@ class Automation(QtGui.QWidget):
 
     def showInfo(self, s):
         info, threadNum = s
-        exec('self.tableWidget.item%s2.setText(self.tr(info))' % threadNum)
+        # exec('self.tableWidget.item%s2.setText(self.tr(info))' % threadNum)
+        self.tableWidget.setItem(threadNum, 2,
+                                 QtGui.QTableWidgetItem(unicode(info)))
 
-    def getNewThread(self):
+    def getNewThread(self, finishedNum):
+        item = getattr(self.tableWidget, 'item%s1' % finishedNum)
+        item.setCheckState(QtCore.Qt.Unchecked)
         self.count += 1
-        if self.count <= len(self.user_list):
+        if self.count < len(self.user_list):
             userInfo = self.user_list[self.count]
-            t = UuWorker(userInfo, self.count, self.c, **options)
+            t = UuWorker(self.c, *userInfo, **options)
             t.dangDangXiaDan.c.sig.connect(self.showInfo)
             t.start()
             setattr(self, 'thread%s' % str(self.count + 1), t)
             self.threadsList.append(t)
 
+    def getNew(self, finishedNum):
+        item = getattr(self.tableWidget, 'item%s1' % finishedNum)
+        item.setCheckState(QtCore.Qt.Unchecked)
+        self.count += 1
+        if self.count < len(self.user_list):
+            userInfo = self.user_list[self.count]
+            t = Worker(self.c, *userInfo, **options)
+            self.setTableItem(t, userInfo[0])
+            t.dangDangXiaDan.c.sig.connect(self.showInfo)
+            t.start()
+            setattr(self, 'thread%s' % str(self.count + 1), t)
+            self.threadsList.append(t)
+
+    def getColumn(self, column):
+        return [getattr(self.tableWidget, 'item%s%s' % (row, column)).text()
+                for row, _ in enumerate(self.input_list)]
+
     def begin_event(self):
+        print self.getColumn(0)
+        print self.getColumn(5)
         global options
         options = showOption()
         uu = options.get('uuPlatform', None)
         maxThread = int(options.get('maxThreadCount', 1))
 
+        columnItem = [getattr(self.tableWidget, 'item%s1' % row)
+                      for row, _ in enumerate(self.input_list)]
+        self.user_list = [(index, self.input_list[index])
+                          for index, b in enumerate(columnItem)
+                          if b.checkState() == QtCore.Qt.Checked]
+
+        preTotalBook = [zip(b[7], b[8]) for a, b in self.user_list]
+        preTotalBook = reduce(lambda x, y: x + y, preTotalBook)
+        bookIDs = set(name for name, q in preTotalBook)
+        totalBookList = [(i, sum(int(q)
+                                 for name, q in preTotalBook if name == i))
+                         for i in bookIDs]
+
+        errorBooks = []
+        for bookid, quantity_want_to_buy in totalBookList:
+            bookname, q = inventory(bookid)
+            if q < quantity_want_to_buy:
+                errorBooks.append((bookname, bookid, quantity_want_to_buy, q))
+        if errorBooks:
+            temp = u'商品:%s,(ID:%s),\n本次订单预购%s, 库存数量%s,无法完成该订单'
+            warnnings = '\n\n'.join(temp % i for i in errorBooks)
+
+            QtGui.QMessageBox.question(self, 'Message',
+                                       warnnings,
+                                       QtGui.QMessageBox.Yes)
+            # QtGui.QMessageBox.No,
+            # QtGui.QMessageBox.No)
+            return
+            # 检验用户返回，并返回对应的结果
+            # if reply != QtGui.QMessageBox.Yes:
+            #     return
+
         if hasattr(self, 'user_list'):
             if u'请选择' not in options.values():
                 self.threadsList = []
-                self.c.sig.connect(self.getNewThread)
                 if uu:
+                    self.c.sig.connect(self.getNewThread)
                     for i, userInfo in enumerate(self.user_list[:maxThread]):
-                        self.t = UuWorker(userInfo, i, self.c, **options)
+                        self.t = UuWorker(self.c, *userInfo, **options)
                         self.t.dangDangXiaDan.c.sig.connect(self.showInfo)
                         self.t.start()
                         setattr(self, 'thread%s' % str(i + 1), self.t)
@@ -135,9 +189,12 @@ class Automation(QtGui.QWidget):
                         self.count = i
 
                 else:
+                    global flags
+                    flags = [True] * len(self.input_list)
+                    self.c.sig.connect(self.getNew)
                     for i, userInfo in enumerate(self.user_list[:maxThread]):
-                        self.t = Worker(userInfo, i, self.c, **options)
-                        self.setTableItem(self.t, i)
+                        self.t = Worker(self.c, *userInfo, **options)
+                        self.setTableItem(self.t, userInfo[0])
                         self.t.dangDangXiaDan.c.sig.connect(self.showInfo)
                         self.t.start()
                         setattr(self, 'thread%s' % str(i + 1), self.t)
@@ -184,14 +241,14 @@ class MainTable(QtGui.QTableWidget):
             for col in range(len(titleList)):
                 item = QtGui.QTableWidgetItem()
                 self.setItem(count, col, item)
-                setattr(self, 'item%s%s' % (count, col), item)
                 if col == 1:
                     item.setCheckState(QtCore.Qt.Checked)
                 elif isinstance(arg[col], list):
-                    item.setText(*arg[col])
+                    item.setText(';'.join(arg[col]))
                 else:
                     item.setText(self.tr(arg[col]))
-        self.show()
+                    # item.setFlags(~QtCore.Qt.ItemIsEditable)
+                setattr(self, 'item%s%s' % (count, col), item)
 
 
 class PicLabel(QtGui.QLabel):
@@ -216,7 +273,6 @@ class PicLabel(QtGui.QLabel):
         self.dangDangThread.download_captcha()
         pix = QtGui.QPixmap(self.dangDangThread.imgfile)
         self.setPixmap(pix)
-        print self.dangDangThread.imgfile
         # self.resize(90, 50)
 
     def mousePressEvent(self, event):
@@ -258,8 +314,9 @@ class EnterLineEdit(QtGui.QLineEdit):
                                                 QtGui.QFrame.Sunken)
                     self.piclabel.setText(u'Done!')
                     self.setText(u'完成！')
+                    self.setFocus()
                     global flags
-                    flags = False
+                    flags[self.dangDangThread.threadNum] = False
                 else:
                     self.piclabel.setEnabled(True)
                     self.piclabel.showPic()
@@ -285,14 +342,15 @@ class EnterLineEdit(QtGui.QLineEdit):
 
 class Worker(threading.Thread):
 
-    def __init__(self, userInfo, threadNum, c, **kw):
+    def __init__(self, c, threadNum, userInfo, **kw):
         super(Worker, self).__init__()
         self.c = c
         self.isFinished = False
+        self.threadNum = threadNum
         self.dangDangXiaDan = DangDangXiaDan(userInfo, threadNum, **kw)
 
     def run(self):
-        while flags:
+        while flags[self.threadNum]:
             time.sleep(1)
         self.dangDangXiaDan.shopping(self.c)
         self.isFinished = True
@@ -300,7 +358,7 @@ class Worker(threading.Thread):
 
 class UuWorker(threading.Thread):
 
-    def __init__(self, userInfo, threadNum, c, **kw):
+    def __init__(self, c, threadNum, userInfo, **kw):
         super(UuWorker, self).__init__()
         self.c = c
         self.isFinished = False
