@@ -178,10 +178,9 @@ class SysOption(QtGui.QWidget):
         self.payOpt.invoiceTitleBox.setCurrentIndex(self.payOpt.invoiceTitles.index(oldOption['invoiceTitle']))
         self.payOpt.invoiceBox.setCurrentIndex(self.payOpt.invoice.index(oldOption['invoice']))
 
-
-
     def setEditorsEnable(self, bo=True):
-        [edit.setEnabled(bo) for kw, edit in self.editList + self.checkBoxList + self.ComboBoxList]
+        [edit.setEnabled(bo) for kw, edit in
+         self.editList + self.checkBoxList + self.ComboBoxList]
 
     def saveOption(self):
         setNewText = {kw: edit.text() for kw, edit in self.editList}
