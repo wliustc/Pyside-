@@ -59,7 +59,7 @@ class DangDangXiaDan(object):
         self.options = options
         self.username = userInfo[0]
         self.password = userInfo[5]
-        self.booklist = zip(userInfo[7], userInfo[8])
+        self.booklist = zip(userInfo[7].split(';'), userInfo[8].split(';'))
         address = {'name': userInfo[15],
                    'pro': userInfo[9],
                    'city': userInfo[10],
