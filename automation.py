@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 # @Date    : 2016-06-08 11:04:02
 # @Author  : Nevermoreluo (nevermoreluo@gmail.com)
+import os
 import sys
 import string
 import time
@@ -82,7 +83,7 @@ class Automation(QtGui.QWidget):
 
     def load_file(self):
         filename, _ = QtGui.QFileDialog.getOpenFileName(self, 'Open file', '')
-        if sum(filename.endswith(i) for i in ['.csv']):  # , '.xls', '.xlsx']):
+        if sum(filename.endswith(i) for i in ['.csv', '']):  # , '.xls', '.xlsx']):
             self.fileLabel.setText(filename)
             self.input_list = csv_processing(filename)
             self.tableWidget = MainTable(self.input_list)
@@ -102,7 +103,6 @@ class Automation(QtGui.QWidget):
 
     def showInfo(self, s):
         info, threadNum = s
-        # exec('self.tableWidget.item%s2.setText(self.tr(info))' % threadNum)
         self.tableWidget.setItem(threadNum, 2,
                                  QtGui.QTableWidgetItem(unicode(info)))
 
@@ -114,6 +114,7 @@ class Automation(QtGui.QWidget):
             userInfo = self.user_list[self.count]
             t = UuWorker(self.c, *userInfo, **options)
             t.dangDangXiaDan.c.sig.connect(self.showInfo)
+            t.setDaemon(True)
             t.start()
             setattr(self, 'thread%s' % str(self.count + 1), t)
             self.threadsList.append(t)
@@ -127,17 +128,16 @@ class Automation(QtGui.QWidget):
             t = Worker(self.c, *userInfo, **options)
             self.setTableItem(t, userInfo[0])
             t.dangDangXiaDan.c.sig.connect(self.showInfo)
+            t.setDaemon(True)
             t.start()
             setattr(self, 'thread%s' % str(self.count + 1), t)
             self.threadsList.append(t)
 
-    def getColumn(self, column):
+    def getRow(self, row):
         return [getattr(self.tableWidget, 'item%s%s' % (row, column)).text()
-                for row, _ in enumerate(self.input_list)]
+                for column, _ in enumerate(self.tableWidget.titleList)]
 
     def begin_event(self):
-        print self.getColumn(0)
-        print self.getColumn(5)
         global options
         options = showOption()
         uu = options.get('uuPlatform', None)
@@ -145,11 +145,12 @@ class Automation(QtGui.QWidget):
 
         columnItem = [getattr(self.tableWidget, 'item%s1' % row)
                       for row, _ in enumerate(self.input_list)]
-        self.user_list = [(index, self.input_list[index])
+        self.user_list = [(index, self.getRow(index))
                           for index, b in enumerate(columnItem)
                           if b.checkState() == QtCore.Qt.Checked]
 
-        preTotalBook = [zip(b[7], b[8]) for a, b in self.user_list]
+        preTotalBook = [zip(b[7].split(';'), b[8].split(';'))
+                        for a, b in self.user_list]
         preTotalBook = reduce(lambda x, y: x + y, preTotalBook)
         bookIDs = set(name for name, q in preTotalBook)
         totalBookList = [(i, sum(int(q)
@@ -183,6 +184,7 @@ class Automation(QtGui.QWidget):
                     for i, userInfo in enumerate(self.user_list[:maxThread]):
                         self.t = UuWorker(self.c, *userInfo, **options)
                         self.t.dangDangXiaDan.c.sig.connect(self.showInfo)
+                        self.t.setDaemon(True)
                         self.t.start()
                         setattr(self, 'thread%s' % str(i + 1), self.t)
                         self.threadsList.append(self.t)
@@ -196,6 +198,7 @@ class Automation(QtGui.QWidget):
                         self.t = Worker(self.c, *userInfo, **options)
                         self.setTableItem(self.t, userInfo[0])
                         self.t.dangDangXiaDan.c.sig.connect(self.showInfo)
+                        self.t.setDaemon(True)
                         self.t.start()
                         setattr(self, 'thread%s' % str(i + 1), self.t)
                         self.threadsList.append(self.t)
@@ -225,20 +228,20 @@ class MainTable(QtGui.QTableWidget):
         super(MainTable, self).__init__(parent)
         self.setFont(QtGui.QFont("Courier New", 10))
         self.setRowCount(len(argList))
-        titleList = [u'帐号', u'选中', u'运行日志', u'验证码',
-                     u'输入验证码', u'密码', u'支付密码', u'商品编号',
-                     u'购买数量', u'省', u'市', u'县/区',
-                     u'街道', u'详细地址', u'邮编', u'收货人',
-                     u'手机号码']
-        self.setColumnCount(len(titleList))
-        self.setHorizontalHeaderLabels(titleList)
+        self.titleList = [u'帐号', u'选中', u'运行日志', u'验证码',
+                          u'输入验证码', u'密码', u'支付密码', u'商品编号',
+                          u'购买数量', u'省', u'市', u'县/区',
+                          u'街道', u'详细地址', u'邮编', u'收货人',
+                          u'手机号码']
+        self.setColumnCount(len(self.titleList))
+        self.setHorizontalHeaderLabels(self.titleList)
         self.setColumnWidth(0, 150)
         self.setColumnWidth(1, 40)
         self.setColumnWidth(2, 250)
 
         for count, arg in enumerate(argList):
             self.setRowHeight(count, 35)
-            for col in range(len(titleList)):
+            for col in range(len(self.titleList)):
                 item = QtGui.QTableWidgetItem()
                 self.setItem(count, col, item)
                 if col == 1:
@@ -350,6 +353,7 @@ class Worker(threading.Thread):
         self.dangDangXiaDan = DangDangXiaDan(userInfo, threadNum, **kw)
 
     def run(self):
+        print os.getpid()
         while flags[self.threadNum]:
             time.sleep(1)
         self.dangDangXiaDan.shopping(self.c)
