@@ -4,10 +4,10 @@
 # @Author  : Nevermoreluo (nevermoreluo@gmail.com)
 
 
-imgfile = 'screenshot%s.jpg'
+imgfile = './screenshot%s.jpg'
 
 # 设置phantomjs路径
-phantomjs_path = ''
+phantomjs_path = ('/home/never/模板/phantomjs-2.1.1-linux-x86_64/bin/phantomjs')
 userSettingDate = 'userSetting'
 
 paydict = {u'网上支付': '-1',
@@ -17,5 +17,11 @@ paydict = {u'网上支付': '-1',
            u'银行转帐': '2',
            u'他人代付': '100'}
 
-invoicedict = {u'个人': 'invoice_title_person_0_0',
-               u'单位': 'invoice_title_company_0_0'}
+deliverydict = {u'时间不限 ': '3',
+                u'只工作日送货 ': '1',
+                u'只双休日、假日送货 ': '2'}
+
+invoicedict = {u'个人': ['e_invoice_title_person_0_0',
+                       'invoice_title_person_0_0'],
+               u'单位': ['e_invoice_title_company_0_0',
+                       'invoice_title_company_0_0']}
