@@ -1,8 +1,6 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 # @Date    : 2016-06-08 11:04:02
 # @Author  : Nevermoreluo (nevermoreluo@gmail.com)
-import os
 import sys
 import string
 import time
@@ -10,7 +8,7 @@ from PySide import QtGui
 from PySide import QtCore
 from config import *
 import threading
-from dangdang_pyside import DangDangXiaDan, inventory
+from dangdang import DangDangXiaDan, inventory
 from sysOption import showOption
 # 重载sys时,偶尔会丢失标准输出，标准输入等，所以最好提前赋值
 stdi, stdo, stde = sys.stdin, sys.stdout, sys.stderr
@@ -52,29 +50,35 @@ def csv_processing(filename):
 
 
 class Automation(QtGui.QWidget):
-
+    '''
+    自动化下单主界面
+    '''
     def __init__(self, parent=None):
         super(Automation, self).__init__(parent)
-
+        # 设置界面布局
         self.mainLayout = QtGui.QGridLayout(self)
         self.bottomLayout = QtGui.QHBoxLayout()
         self.text = QtGui.QTextBrowser()
         self.fileLabel = QtGui.QLabel(self.tr(''))
 
+        # 建立按钮
         self.loadButton = QtGui.QPushButton(self.tr("导入文件"))
         beginButton = QtGui.QPushButton(self.tr("开始任务"))
         stopButton = QtGui.QPushButton(self.tr("暂停"))
 
+        # 加入弹簧，设置按钮布局
         self.bottomLayout.addStretch(1)
         self.bottomLayout.addWidget(self.loadButton)
         self.bottomLayout.addWidget(stopButton)
         self.bottomLayout.addWidget(beginButton)
 
+        # 设置主界面布局
         self.mainLayout.addWidget(self.fileLabel, 1, 0)
         self.mainLayout.addWidget(self.text, 2, 0)
         self.mainLayout.addLayout(self.bottomLayout, 3, 0)
         self.setLayout(self.mainLayout)
 
+        # 关联按钮事件
         self.loadButton.clicked.connect(self.load_file)
         stopButton.clicked.connect(self.stop_event)
         beginButton.clicked.connect(self.begin_event)
@@ -82,6 +86,9 @@ class Automation(QtGui.QWidget):
         self.c = Communicate()
 
     def load_file(self):
+        '''
+        读取文件
+        '''
         filename, _ = QtGui.QFileDialog.getOpenFileName(self, 'Open file', '')
         if sum(filename.endswith(i) for i in ['.csv', '']):  # , '.xls', '.xlsx']):
             self.fileLabel.setText(filename)
@@ -96,17 +103,29 @@ class Automation(QtGui.QWidget):
                                        QtGui.QMessageBox.Yes)
 
     def setTableItem(self, workThread, threadNum):
+        '''
+        按线程ID为规定行初始化验证码图片
+        '''
         self.picLabel = PicLabel(workThread)
         self.captchaLineEdit = EnterLineEdit(self.picLabel)
         self.tableWidget.setCellWidget(threadNum, 3, self.picLabel)
         self.tableWidget.setCellWidget(threadNum, 4, self.captchaLineEdit)
 
     def showInfo(self, s):
+        '''
+        按线程ID为规定行输入日志信息
+        '''
         info, threadNum = s
         self.tableWidget.setItem(threadNum, 2,
                                  QtGui.QTableWidgetItem(unicode(info)))
 
     def getNewThread(self, finishedNum):
+        '''
+        uu
+        根据已完成线程ID，
+        按勾选事件返回顺序，
+        开启下一个线程
+        '''
         item = getattr(self.tableWidget, 'item%s1' % finishedNum)
         item.setCheckState(QtCore.Qt.Unchecked)
         self.count += 1
@@ -120,6 +139,9 @@ class Automation(QtGui.QWidget):
             self.threadsList.append(t)
 
     def getNew(self, finishedNum):
+        '''
+        开启下一个线程
+        '''
         item = getattr(self.tableWidget, 'item%s1' % finishedNum)
         item.setCheckState(QtCore.Qt.Unchecked)
         self.count += 1
@@ -134,6 +156,9 @@ class Automation(QtGui.QWidget):
             self.threadsList.append(t)
 
     def getRow(self, row):
+        '''
+        读取tablewidget内规定行的数据
+        '''
         return [getattr(self.tableWidget, 'item%s%s' % (row, column)).text()
                 for column, _ in enumerate(self.tableWidget.titleList)]
 
@@ -353,7 +378,6 @@ class Worker(threading.Thread):
         self.dangDangXiaDan = DangDangXiaDan(userInfo, threadNum, **kw)
 
     def run(self):
-        print os.getpid()
         while flags[self.threadNum]:
             time.sleep(1)
         self.dangDangXiaDan.shopping(self.c)
